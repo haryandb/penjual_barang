@@ -32,6 +32,8 @@ jobs:
       - name: Generate platform files
         run: |
           flutter create --project-name penjual_barang --platforms android .
+          # Remove auto-generated test file (conflicts with our test)
+          rm -f test/widget_test.dart test/widget_test.dart.bak
 
       - name: Get dependencies
         run: flutter pub get
