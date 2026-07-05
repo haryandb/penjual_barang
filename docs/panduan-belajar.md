@@ -1377,3 +1377,427 @@ Kalo pake `PageView`, setiap ganti tab, halaman di-render ulang dari awal. `Inde
 1. **Tambah sorting:** Tambah dropdown atau tombol untuk mengurutkan transaksi: Terbaru, Tertua, Tertinggi. (Petunjuk: pake method `..sort()` bawaan list).
 2. **Badge notifikasi:** Tambah badge di `NavigationDestination` "Transaksi" yang menampilkan jumlah transaksi hari ini. (Petunjuk: cek properti `badge` di NavigationDestination).
 3. **Halaman detail:** Ganti `ExpansionTile` jadi tap untuk navigasi ke halaman detail transaksi terpisah. Buat screen baru `TransactionDetailScreen`.
+
+---
+
+## Tahap 7 — Utility: Error Handling & Formatting
+
+Di tahap ini, kamu akan belajar **error handling** dan **regex** lewat file `lib/utils/currency_helper.dart`.
+
+Buka file tersebut.
+
+### 7.1 Top-Level Function
+
+```dart
+String formatRupiah(double amount) {
+  ...
+}
+```
+
+**Top-level function** adalah fungsi yang berdiri sendiri — bukan bagian dari class. Berbeda dengan method-method di `TransactionProvider` yang berada di dalam class, function `formatRupiah` bisa dipanggil dari mana saja tanpa perlu membuat object.
+
+```dart
+// Panggil langsung — tanpa object
+formatRupiah(65000)  // "Rp 65.000"
+```
+
+### 7.2 NumberFormat — Format Mata Uang
+
+```dart
+NumberFormat _currencyFormat = _createFormat();
+
+NumberFormat _createFormat() {
+  try {
+    return NumberFormat.currency(
+      locale: 'id_ID',
+      symbol: 'Rp ',
+      decimalDigits: 0,
+    );
+  } catch (_) { ... }
+}
+```
+
+**`NumberFormat.currency`** dari package `intl` bisa memformat angka menjadi mata uang. Misal `65000` jadi `"Rp 65.000"` — lengkap dengan separator ribuan.
+
+Tapi ada masalah: locale **'id_ID'** (Indonesia) butuh data ICU tertentu. Di lingkungan tertentu (misal Flutter test), data ini gak tersedia.
+
+### 7.3 Try-Catch Cascade — 3 Level Fallback
+
+```dart
+NumberFormat _createFormat() {
+  try {
+    // Level 1: Coba dengan locale lengkap
+    return NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
+  } catch (_) {
+    try {
+      // Level 2: Fallback — locale tanpa country code
+      return NumberFormat.currency(locale: 'id', symbol: 'Rp ', decimalDigits: 0);
+    } catch (_) {
+      // Level 3: Fallback terakhir — tanpa locale
+      return NumberFormat.currency(symbol: 'Rp ', decimalDigits: 0);
+    }
+  }
+}
+```
+
+Pola **cascade fallback**: coba solusi terbaik dulu, kalo gagal turun ke solusi berikutnya. Ini berguna untuk API/feature yang mungkin gak tersedia di semua environment.
+
+**Flow:**
+```
+Coba locale 'id_ID'  →  gagal?  →  Coba locale 'id'  →  gagal?  →  Tanpa locale
+```
+
+### 7.4 Regex — Manual Separator Ribuan
+
+Kalo semua `NumberFormat` gagal, ada fallback manual:
+
+```dart
+return 'Rp ${amount.toStringAsFixed(0).replaceAllMapped(
+  RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
+  (m) => '${m[1]}.',
+)}';
+```
+
+**Regex** (Regular Expression) adalah pola untuk mencari dan mengganti teks.
+
+```
+RegExp(r'(\d)(?=(\d{3})+(?!\d))')
+```
+
+Mari baca regex ini:
+- `(\d)` — tangkap satu digit (angka 0-9)
+- `(?=...)` — positive lookahead: "diikuti oleh..."
+- `(\d{3})+` — satu atau lebih grup yang terdiri dari 3 digit
+- `(?!\d)` — negative lookahead: "TIDAK diikuti digit"
+
+**Contoh:** `1000000`
+1. Cari digit yang diikuti 1+ grup 3 digit
+2. Digit `1` diikuti `000` `000` — cocok! → tambah titik setelah `1`
+3. Hasil: `1.000.000`
+
+### Istilah Baru di Tahap 7
+
+| Istilah | Arti |
+|---------|------|
+| **Top-level function** | Fungsi yang berdiri sendiri, bukan di dalam class |
+| **NumberFormat** | Class untuk format angka/mata uang |
+| **try-catch** | Menangkap error agar program gak crash |
+| **Fallback** | Solusi cadangan kalo solusi utama gagal |
+| **Regex (Regular Expression)** | Pola untuk mencari/mengganti teks |
+| **Lookahead** | Aturan regex: "diikuti oleh..." atau "tidak diikuti..." |
+| **Cascade fallback** | Pola coba A → gagal → coba B → gagal → coba C |
+
+### Latihan Tahap 7
+
+1. **Buat `formatDate` dengan fallback:** Buat function `formatDate(DateTime date)` yang coba pake `DateFormat` dari `intl` dulu. Kalo gagal, fallback ke array manual seperti yang ada di `Transaction.formattedDate`.
+2. **Buat `parseRupiah`:** Buat function `double parseRupiah(String formatted)` yang mengubah string "Rp 50.000" kembali menjadi angka `50000.0`. (Hint: hapus "Rp", hapus titik, parse jadi double).
+
+---
+
+## Tahap 8 — Widget Testing
+
+Di tahap ini, kamu akan belajar **menulis test** untuk widget Flutter.
+
+Buka file `test/app_test.dart`.
+
+### 8.1 Kenapa Testing Penting?
+
+**Testing** adalah cara memastikan kode kita bekerja dengan benar. Bayangkan:
+- Kamu ubah sesuatu, takut ada yang rusak di bagian lain
+- Setiap kali mau ngecek, harus jalanin ulang aplikasi dan klik manual
+
+Dengan test, cukup jalankan satu perintah, dan komputer akan ngecek semuanya secara otomatis.
+
+### 8.2 Struktur Test Flutter
+
+```dart
+void main() {
+  setUpAll(() {
+    Intl.defaultLocale = 'id_ID';
+  });
+
+  testWidgets('Deskripsi test', (tester) async {
+    await tester.pumpWidget(const PenjualBarangApp());
+    await tester.pumpAndSettle();
+
+    expect(find.text('Dashboard'), findsAtLeastNWidgets(1));
+  });
+}
+```
+
+**`testWidgets`** — fungsi untuk test widget. Menerima deskripsi dan fungsi test.
+
+**`tester`** — object untuk berinteraksi dengan widget di lingkungan test.
+
+### 8.3 pumpWidget vs pumpAndSettle
+
+```dart
+await tester.pumpWidget(const PenjualBarangApp());   // Render 1 frame
+await tester.pumpAndSettle();                         // Render sampai semua animasi selesai
+```
+
+- **`pumpWidget`** — render widget sekali. Panggil ini dulu untuk memulai.
+- **`pumpAndSettle`** — render terus sampai tidak ada animasi lagi. Butuh ini karena aplikasi punya animasi (misal transisi halaman).
+
+### 8.4 Finder — Cara Menemukan Widget
+
+```dart
+find.text('Dashboard')              // Cari widget dengan teks exact
+find.textContaining('Penjualan')    // Cari widget yang mengandung teks
+find.widgetWithText(Text, 'Halo')   // Cari widget tipe tertentu dengan teks
+```
+
+Finder mengembalikan widget yang cocok. Kalo lebih dari satu yang cocok, kita perlu `.first` atau `.last` untuk memilih yang mana.
+
+**Contoh kasus `.last`:**
+
+```dart
+await tester.tap(find.text('Transaksi').last);
+```
+
+Kenapa `.last`? Karena "Transaksi" muncul 2 kali:
+1. Di AppBar (judul halaman) — saat di tab Transaksi
+2. Di NavigationBar (label bottom nav)
+
+Kalo `.first`, yang diklik AppBar — gak ngapa-ngapain. `.last` nge-klik bottom nav yang mengubah tab.
+
+### 8.5 Matcher — Memeriksa Hasil
+
+```dart
+expect(find.text(...), findsOneWidget);              // Tepat 1 widget
+expect(find.text(...), findsWidgets);                 // ≥1 widget
+expect(find.text(...), findsAtLeastNWidgets(2));      // Minimal 2 widget
+expect(find.text(...), findsNothing);                 // Gak ada widget
+```
+
+Matcher adalah fungsi yang memeriksa apakah kondisi terpenuhi. Kalo gak terpenuhi, test akan gagal dan menampilkan pesan error.
+
+### 8.6 Simulasi Interaksi
+
+```dart
+await tester.tap(find.text('Transaksi Baru'));       // Tap tombol
+await tester.enterText(find.byType(TextFormField), 'Budi');  // Ketik teks
+```
+
+### Istilah Baru di Tahap 8
+
+| Istilah | Arti |
+|---------|------|
+| **Testing** | Cara otomatis memastikan kode bekerja |
+| **testWidgets** | Fungsi untuk menulis test widget |
+| **tester.pumpWidget** | Render widget di test |
+| **tester.pumpAndSettle** | Render sampai animasi selesai |
+| **Finder** | Cara menemukan widget di test |
+| **Matcher** | Fungsi untuk memeriksa hasil test |
+
+### Latihan Tahap 8
+
+1. **Test submit form:** Tulis test yang: buka form → isi nama pelanggan → tambah 1 item → pilih metode bayar → submit. Cek bahwa snackbar sukses muncul.
+2. **Test hapus transaksi:** Tulis test yang: render dashboard → tap tombol hapus di recent transaction → cek transaksi hilang. (Petunjuk: cek bahwa `find.text('Budi Santoso')` jadi `findsNothing` setelah dihapus).
+
+---
+
+## Tahap 9 — CI/CD dengan GitHub Actions
+
+Di tahap ini, kamu akan belajar **otomasi** — bagaimana setiap kali kamu push kode ke GitHub, komputer otomatis ngetes dan nge-build aplikasi.
+
+Buka file `.github/workflows/build-debug-apk.yml`.
+
+### 9.1 Apa Itu CI/CD?
+
+- **CI (Continuous Integration)** — setiap kali ada kode baru, langsung di-test secara otomatis
+- **CD (Continuous Deployment)** — setelah test lolos, kode langsung di-build dan siap didistribusikan
+
+Bayangkan: kamu push kode ke GitHub, lalu secara otomatis:
+1. Kode dianalisa (cek error)
+2. Test dijalankan
+3. APK di-build
+4. Kamu bisa download APK-nya
+
+Semua tanpa perlu ngapa-ngapain manual.
+
+### 9.2 Trigger — Kapan Workflow Jalan
+
+```yaml
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:  # Manual trigger
+```
+
+Ada 3 cara workflow bisa jalan:
+1. **Push ke `main`** — setiap kali ada commit baru di branch main
+2. **Pull Request ke `main`** — setiap kali ada PR yang targetnya main
+3. **Workflow dispatch** — manual dari GitHub UI (tombol "Run workflow")
+
+### 9.3 Steps — Langkah-Langkah
+
+```yaml
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4          # 1. Download kode dari GitHub
+      - uses: actions/setup-java@v4        # 2. Setup Java (dibutuhkan Android)
+      - name: Setup Flutter                # 3. Install Flutter
+        run: |
+          git clone --depth 1 -b stable https://github.com/flutter/flutter.git
+      - name: Generate platform files      # 4. Generate file Android
+        run: flutter create --platforms android .
+      - run: flutter pub get               # 5. Install dependencies
+      - run: flutter analyze               # 6. Cek kualitas kode
+      - run: flutter test                  # 7. Jalanin test
+      - run: flutter build apk --debug     # 8. Build APK
+      - uses: actions/upload-artifact@v4   # 9. Upload APK
+```
+
+Setiap langkah dijalankan berurutan. Kalo ada yang gagal (misal test error), langkah selanjutnya gak dijalankan.
+
+**Kenapa setup Flutter manual, bukan pakai action?**
+Awalnya pake `subosito/flutter-action@v2`, tapi kadang error "Unable to determine Flutter version". Clone langsung dari repo Flutter lebih reliable.
+
+**Kenapa perlu `flutter create`?**
+Project ini dibuat tanpa `flutter create` (Flutter gak terinstall di mesin developer). File-file Android (Gradle config, AndroidManifest) harus di-generate dulu di CI.
+
+### 9.4 Download APK
+
+Setelah workflow selesai, APK bisa di-download dari GitHub:
+1. Buka repository di GitHub
+2. Klik tab **Actions**
+3. Klik workflow run yang selesai
+4. Scroll ke **Artifacts**
+5. Klik **debug-apk** untuk download
+
+### Istilah Baru di Tahap 9
+
+| Istilah | Arti |
+|---------|------|
+| **CI/CD** | Continuous Integration / Continuous Deployment |
+| **Workflow** | Rangkaian langkah otomatis di GitHub Actions |
+| **Trigger** | Kejadian yang memulai workflow |
+| **Artifact** | File hasil build (APK) yang bisa di-download |
+| **Runner** | Server yang menjalankan workflow (ubuntu-latest) |
+
+### Latihan Tahap 9
+
+1. **Notifikasi gagal:** Tambah step di workflow untuk kirim notifikasi Telegram atau email kalo build gagal. (Petunjuk: cari action `peter-evans/commit-comment` atau kirim webhook).
+2. **Build AppBundle:** Tambah step `flutter build appbundle` (format untuk Play Store) di samping debug APK.
+
+---
+
+## Penutup
+
+Selamat! Kamu sudah menyelesaikan panduan ini. Berikut ringkasan semua yang kamu pelajari:
+
+### Konsep → Implementasi
+
+| Konsep | Implementasi di Project |
+|--------|------------------------|
+| Variable & Tipe Data | `String`, `int`, `double` di `TransactionItem` |
+| Class & Constructor | `Transaction`, `TransactionItem` |
+| Getter / Computed Property | `subtotal`, `total`, `todayRevenue` |
+| Immutable data | `final` fields di `Transaction` |
+| Widget Tree | `Card > Padding > Column > Text` di `StatCard` |
+| StatelessWidget | `StatCard`, `DashboardScreen` |
+| StatefulWidget | `AddTransactionScreen` |
+| State Management | `ChangeNotifier` + `Provider` |
+| Layout (Row, Column) | Dashboard grid, item rows |
+| Form & Validasi | Form tambah transaksi |
+| List Efisien | `ListView.builder` |
+| Grafik | fl_chart `BarChart` |
+| Navigation | `Navigator.push/pop`, `NavigationBar` |
+| Error Handling | `try-catch` cascade di currency helper |
+| Regex | Separator ribuan manual |
+| Testing | `testWidgets`, `pumpAndSettle` |
+| CI/CD | GitHub Actions workflow |
+
+### Daftar Istilah (Glossary)
+
+| Istilah | Arti | Kenalan di |
+|---------|------|-----------|
+| **AnimatedContainer** | Container dengan animasi otomatis saat properti berubah | Tahap 5 |
+| **Artifact** | File hasil build (APK) | Tahap 9 |
+| **BorderRadius** | Mengatur kelengkungan sudut widget | Tahap 2 |
+| **Cascade notation (`..`)** | Panggil method pada object tanpa variable | Tahap 3 |
+| **Cascade fallback** | Coba A → gagal → coba B → gagal → coba C | Tahap 7 |
+| **ChangeNotifier** | Class yang memberitahu widget saat data berubah | Tahap 3 |
+| **CI/CD** | Continuous Integration / Continuous Deployment | Tahap 9 |
+| **Class** | Cetakan untuk membuat object | Tahap 1 |
+| **Computed property** | Properti yang dihitung dari data lain | Tahap 3 |
+| **Conditional widget** | Widget yang muncul hanya jika kondisi terpenuhi | Tahap 2 |
+| **Consumer** | Widget yang rebuild otomatis saat data provider berubah | Tahap 3 |
+| **Constructor** | Method khusus untuk membuat object | Tahap 1 |
+| **copyWith** | Method untuk membuat salinan style dengan modifikasi | Tahap 2 |
+| **Dependency** | Package/kode buatan orang lain yang dipake project | Tahap 0 |
+| **EdgeInsets** | Mengatur jarak/spasi di sekeliling widget | Tahap 2 |
+| **Emulator** | Program yang menjalankan Android di komputer | Tahap 0 |
+| **Empty state** | Tampilan saat data kosong | Tahap 6 |
+| **Encapsulation** | Melindungi data dengan private + getter/method | Tahap 3 |
+| **Expanded** | Widget yang membagi ruang proporsional | Tahap 4 |
+| **ExpansionTile** | Item list yang bisa di-expand | Tahap 6 |
+| **Fallback** | Solusi cadangan kalo solusi utama gagal | Tahap 7 |
+| **final** | Keyword — nilai tidak bisa diubah setelah diisi | Tahap 1 |
+| **Finder** | Cara menemukan widget di test | Tahap 8 |
+| **fold** | Method untuk mengakumulasi nilai dalam list | Tahap 1 |
+| **Getter** | Properti yang nilainya dihitung otomatis | Tahap 1 |
+| **GlobalKey** | Kunci untuk mengakses state widget Form | Tahap 5 |
+| **Hot reload** | Lihat perubahan kode instan tanpa kompilasi ulang | Tahap 0 |
+| **Immutable** | Tidak bisa diubah setelah dibuat | Tahap 1 |
+| **Index 0-based** | Index dimulai dari 0, bukan 1 | Tahap 1 |
+| **IndexedStack** | Menyimpan state semua tab navigasi | Tahap 6 |
+| **List.generate** | Membuat list dengan fungsi per index | Tahap 4 |
+| **ListView.builder** | Widget list efisien — render item yang terlihat saja | Tahap 6 |
+| **Lookahead** | Aturan regex: "diikuti oleh..." / "tidak diikuti..." | Tahap 7 |
+| **Matcher** | Fungsi untuk memeriksa hasil test | Tahap 8 |
+| **Named parameter** | Parameter yang dipanggil dengan nama, bukan urutan | Tahap 1 |
+| **NavigationBar** | Bottom navigation Material 3 | Tahap 6 |
+| **Navigator** | Mengelola tumpukan halaman (push/pop) | Tahap 5 |
+| **notifyListeners()** | Panggil ini agar UI di-rebuild | Tahap 3 |
+| **Null assertion (`!`)** | "Saya yakin ini gak null" | Tahap 2 |
+| **Nullable** | Bisa bernilai null (ditandai `?`) | Tahap 2 |
+| **NumberFormat** | Class untuk format angka/mata uang | Tahap 7 |
+| **Object** | Instance/contoh nyata dari class | Tahap 1 |
+| **pubspec.yaml** | File konfigurasi project Flutter | Tahap 0 |
+| **Regex** | Regular Expression — pola untuk mencari/mengganti teks | Tahap 7 |
+| **Row / Column** | Widget untuk tata letak horizontal/vertikal | Tahap 4 |
+| **Scaffold** | Struktur dasar halaman Flutter | Tahap 4 |
+| **SDK** | Software Development Kit | Tahap 0 |
+| **setState** | Method untuk trigger rebuild StatefulWidget | Tahap 5 |
+| **SnackBar** | Notifikasi kecil di bawah layar | Tahap 5 |
+| **Spread operator (`...`)** | Memasukkan element list ke dalam collection | Tahap 4 |
+| **State** | Data yang bisa berubah dan mempengaruhi UI | Tahap 3 |
+| **StatefulWidget** | Widget dengan state yang bisa berubah | Tahap 5 |
+| **StatelessWidget** | Widget tanpa state — tampilannya tetap | Tahap 2 |
+| **String interpolation** | Memasukkan nilai variable ke dalam string | Tahap 1 |
+| **Testing** | Cara otomatis memastikan kode bekerja | Tahap 8 |
+| **TextEditingController** | Jembatan antara input teks dan kode | Tahap 5 |
+| **Tipe data** | Jenis nilai (`String`, `int`, `double`) | Tahap 1 |
+| **Tooltip** | Info yang muncul saat user menyentuh elemen | Tahap 4 |
+| **Top-level function** | Fungsi berdiri sendiri, bukan di dalam class | Tahap 7 |
+| **Trigger** | Kejadian yang memulai workflow CI | Tahap 9 |
+| **try-catch** | Menangkap error agar program gak crash | Tahap 7 |
+| **tryParse** | Konversi string ke angka, return null kalo gagal | Tahap 5 |
+| **Validator** | Fungsi yang ngecek apakah input valid | Tahap 5 |
+| **Variable** | Tempat menyimpan nilai di memori | Tahap 1 |
+| **Widget** | Komponen UI di Flutter (tombol, teks, card) | Tahap 0 |
+| **Widget tree** | Susunan widget (parent-child) | Tahap 2 |
+| **Workflow** | Rangkaian langkah otomatis di GitHub Actions | Tahap 9 |
+
+### Next Steps (Ide Pengembangan)
+
+Setelah menguasai project ini, kamu bisa mengembangkannya lebih lanjut:
+
+- **Edit transaksi** — tambah fitur update data transaksi
+- **Search/filter** — cari transaksi berdasarkan nama pelanggan atau tanggal
+- **Riwayat per pelanggan** — lihat semua transaksi yang dilakukan pelanggan tertentu
+- **Export laporan** — export ke PDF atau Excel
+- **Local database** — pake SQLite via package `sqflite` (ganti dari array in-memory)
+- **Backend API** — hubungkan ke API Laravel untuk menyimpan data di server
+
+---
+
+*Dokumentasi ini dibuat untuk materi pembelajaran Flutter — target mahasiswa baru yang belum pernah programming.*
+
+*Repo: https://github.com/haryandb/penjual_barang*
