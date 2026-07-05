@@ -617,3 +617,398 @@ Theme.of(context).textTheme.headlineSmall
 1. **Buat widget `StatusBadge`:** Buat file baru `lib/widgets/status_badge.dart`. Widget ini menerima parameter `String label` dan `Color color`. Tampilkan teks dalam Container dengan background color dan border-radius 8.
 2. **Tambah `onTap` di StatCard:** Jadikan `VoidCallback? onTap` sebagai parameter optional. Kalo diisi, bungkus Card dengan `GestureDetector` atau `InkWell`. Kalo null, tampilkan Card biasa.
 3. **Eksperimen:** Ganti nilai `EdgeInsets.all(16)` jadi `EdgeInsets.all(8)` di StatCard. Hot reload dan lihat perubahannya.
+
+---
+
+## Tahap 3 — Provider & State Management
+
+Di tahap ini, kamu akan belajar **state management** — cara Flutter mengelola data yang bisa berubah dan mengupdate UI secara otomatis.
+
+Buka dua file:
+- `lib/providers/transaction_provider.dart` — tempat state management
+- `lib/main.dart` — tempat provider dipasang ke aplikasi
+
+### 3.1 Apa Itu State?
+
+**State** adalah data yang bisa berubah dan mempengaruhi tampilan.
+
+Contoh state di aplikasi ini:
+- Daftar transaksi (bertambah saat user tambah transaksi)
+- Total penjualan hari ini (berubah saat ada transaksi baru)
+- Halaman yang aktif di bottom nav
+
+Di Flutter, ada dua jenis state:
+1. **Local state** — state di dalam satu widget (pake `setState`, nanti di Tahap 5)
+2. **Global state** — state yang dipake banyak widget (pake `Provider`, kita bahas sekarang)
+
+### 3.2 ChangeNotifier — "Si Pemberi Tahu"
+
+```dart
+class TransactionProvider extends ChangeNotifier {
+```
+
+`ChangeNotifier` adalah class bawaan Flutter yang bisa **memberitahu** widget lain bahwa datanya berubah.
+
+Bayangkan seperti ini:
+- `ChangeNotifier` = pengeras suara di kantor
+- `notifyListeners()` = "Ada pengumuman! Data berubah!"
+- Widget yang `Consumer` = orang-orang yang mendengarkan pengumuman
+
+### 3.3 Private List + Encapsulation
+
+```dart
+final List<Transaction> _transactions = [];
+```
+
+Lihat underscore `_` di depan `_transactions`. Di Dart, underscore berarti **private** — hanya bisa diakses dari dalam class ini saja.
+
+```dart
+List<Transaction> get transactions =>
+    List.unmodifiable(_transactions);
+```
+
+`List.unmodifiable` membuat **salinan list yang tidak bisa diubah**. Jadi kalo ada widget yang coba nambah/hapus transaksi langsung dari getter ini, akan error.
+
+**Kenama repot-repot pake private + unmodifiable?**
+
+Ini pola **encapsulation** — melindungi data dari perubahan tak sengaja. Satu-satunya cara mengubah data adalah lewat method yang kita sediakan (`addTransaction`, `deleteTransaction`). Ini mencegah bug yang susah dilacak.
+
+### 3.4 Consumer — Widget yang Rebuild Otomatis
+
+Di `dashboard_screen.dart` (kita akan bahas detail di Tahap 4):
+
+```dart
+Consumer<TransactionProvider>(
+  builder: (context, provider, _) {
+    // provider = instance TransactionProvider
+    // Kode di sini otomatis di-rebuild saat notifyListeners() dipanggil
+    return Text(formatRupiah(provider.todayRevenue));
+  },
+)
+```
+
+**Cara kerja Consumer:**
+1. `Consumer<TransactionProvider>` mendaftarkan diri ke provider
+2. Saat `notifyListeners()` dipanggil (misal setelah addTransaction)
+3. Consumer menjalankan ulang `builder` — UI di-update
+
+### 3.5 context.watch vs context.read
+
+Ada 3 cara mengakses provider:
+
+```dart
+// 1. Consumer — rebuild widget SAJA yang dibungkus Consumer
+Consumer<TransactionProvider>(builder: ...)
+
+// 2. context.watch — rebuild SELURUH widget
+final provider = context.watch<TransactionProvider>();
+
+// 3. context.read — akses TANPA rebuild
+final provider = context.read<TransactionProvider>();
+```
+
+**Kapan pake yang mana?**
+
+| Situasi | Pake |
+|---------|------|
+| Mau baca data dan rebuild saat berubah | `Consumer` atau `context.watch` |
+| Mau panggil method (misal tombol hapus) | `context.read` |
+| Hanya sebagian widget perlu rebuild | `Consumer` (lebih efisien) |
+
+### 3.6 Computed Properties — Properti yang Dihitung
+
+Lihat getter-getter di `TransactionProvider`:
+
+| Getter | Sumber Data | Cara Hitung |
+|--------|-------------|-------------|
+| `todayTransactions` | `_transactions` | Filter berdasarkan tanggal |
+| `todayRevenue` | `todayTransactions` | `fold` jumlah total |
+| `todayCount` | `todayTransactions` | `.length` |
+| `last7DaysRevenue` | `_transactions` | `List.generate` + `where` + `fold` |
+
+```dart
+double get todayRevenue =>
+    todayTransactions.fold(0.0, (sum, t) => sum + t.total);
+```
+
+Ini disebut **computed property** — properti yang nilainya dihitung dari data lain. Kita gak nyimpan `todayRevenue` di field terpisah. Setiap kali diakses, nilainya dihitung ulang.
+
+**Kenapa gak disimpan aja?**
+
+Karena kalo disimpan, kita harus ingat meng-update `todayRevenue` setiap kali ada transaksi baru. Kalo lupa update, datanya salah. Dengan computed property, nilainya selalu akurat.
+
+### 3.7 ChangeNotifierProvider
+
+Di `lib/main.dart`:
+
+```dart
+ChangeNotifierProvider(
+  create: (_) => TransactionProvider()..seedSampleData(),
+  child: MaterialApp(
+    ...
+  ),
+)
+```
+
+`ChangeNotifierProvider` adalah widget yang **menyediakan** provider ke seluruh widget di dalamnya. Semua widget di dalam `MaterialApp` bisa mengakses `TransactionProvider`.
+
+### 3.8 Cascade Notation (..)
+
+```dart
+TransactionProvider()..seedSampleData()
+//                   ^^
+```
+
+**Cascade notation** (`..`) adalah fitur Dart untuk memanggil method pada object yang baru dibuat, tanpa perlu menyimpannya ke variable dulu.
+
+Kode di atas sama dengan:
+```dart
+final provider = TransactionProvider();
+provider.seedSampleData();
+return provider;
+```
+
+Lebih ringkas, kan?
+
+### Istilah Baru di Tahap 3
+
+| Istilah | Arti |
+|---------|------|
+| **State** | Data yang bisa berubah dan mempengaruhi UI |
+| **ChangeNotifier** | Class yang bisa memberitahu widget saat data berubah |
+| **`notifyListeners()`** | Panggil ini setelah data berubah agar UI di-rebuild |
+| **Consumer** | Widget yang rebuild otomatis saat data provider berubah |
+| **Encapsulation** | Melindungi data dengan private + getter/method |
+| **Computed property** | Properti yang dihitung dari data lain |
+| **Cascade notation** | `..` — panggil method pada object tanpa variable |
+
+### Latihan Tahap 3
+
+1. **Tambah computed property:** Di `TransactionProvider`, tambah getter `int get totalItemsSoldAllTime` yang menghitung total quantity dari SEMUA transaksi (pake `fold`).
+2. **Tambah method hapus semua:** Buat method `void clearAllTransactions()` yang mengosongkan list dan panggil `notifyListeners()`. Tambahkan tombol di dashboard untuk memanggilnya.
+3. **Consumer kecil:** Di `MainScreen`, tambah `Consumer<TransactionProvider>` di AppBar yang menampilkan teks "Hari ini: X transaksi". (Petunjuk: lihat bagaimana AppBar title diatur di `main.dart`)
+
+---
+
+## Tahap 4 — Dashboard: Layout & Grafik
+
+Di tahap ini, kamu akan belajar **layout Flutter** (cara menata widget) dan **grafik** dengan package `fl_chart`.
+
+Buka file `lib/screens/dashboard_screen.dart`.
+
+### 4.1 Scaffold & AppBar
+
+```dart
+Scaffold(
+  appBar: AppBar(title: const Text('Dashboard')),
+  body: ...,
+)
+```
+
+**`Scaffold`** adalah struktur dasar halaman Flutter. Di dalamnya, atur:
+- `appBar` — bar di atas halaman
+- `body` — konten utama
+- `bottomNavigationBar` — navigasi bawah (di `main.dart`)
+
+### 4.2 RefreshIndicator — Tarik untuk Refresh
+
+```dart
+RefreshIndicator(
+  onRefresh: () async {
+    // Kode yang dijalankan saat user tarik layar ke bawah
+  },
+  child: ListView(...),
+)
+```
+
+`RefreshIndicator` memungkinkan user menarik layar ke bawah untuk me-refresh data.
+
+### 4.3 Row & Column — Menata Widget
+
+Flutter punya dua widget utama untuk tata letak:
+
+**`Column`** — menata widget dari atas ke bawah (vertikal):
+```
+Column
+  ├── Widget 1 (atas)
+  ├── Widget 2 (tengah)
+  └── Widget 3 (bawah)
+```
+
+**`Row`** — menata widget dari kiri ke kanan (horizontal):
+```
+Row
+  ├── Widget 1 (kiri)
+  ├── Widget 2 (tengah)
+  └── Widget 3 (kanan)
+```
+
+**`Expanded`** — membagi ruang secara proporsional:
+
+```dart
+Row(
+  children: [
+    Expanded(child: StatCard(...)),   // 50%
+    SizedBox(width: 12),              // jarak 12px
+    Expanded(child: StatCard(...)),   // 50%
+  ],
+)
+```
+
+Dua `Expanded` berarti masing-masing mendapat 50% lebar. Kalo satu pake `flex: 2` dan satu `flex: 1`, berarti 2/3 dan 1/3.
+
+**`SizedBox`** — widget transparan untuk spasi:
+```dart
+SizedBox(width: 12)   // Spasi horizontal 12px
+SizedBox(height: 16)  // Spasi vertikal 16px
+```
+
+### 4.4 Layout Dashboard
+
+Dashboard terdiri dari:
+
+```
+Column
+  ├── Header (judul + tanggal)
+  ├── Row 1: [StatCard: Penjualan Hari Ini] [StatCard: Total Transaksi]
+  ├── Row 2: [StatCard: Item Terjual]      [StatCard: Total Pendapatan]
+  ├── Grafik Penjualan 7 Hari
+  └── Recent Transactions (5 transaksi terbaru)
+```
+
+Perhatikan kodenya:
+
+```dart
+// Baris 1: dua kartu
+Row(
+  children: [
+    Expanded(
+      child: StatCard(
+        title: 'Penjualan Hari Ini',
+        value: formatRupiah(provider.todayRevenue),
+        icon: Icons.trending_up_rounded,
+        color: Colors.green,
+        subtitle: '${provider.todayCount} transaksi',
+      ),
+    ),
+    SizedBox(width: 12),  // Jarak antar kartu
+    Expanded(
+      child: StatCard(
+        title: 'Total Transaksi',
+        value: '${provider.transactions.length}',
+        icon: Icons.receipt_long_rounded,
+        color: Colors.blue,
+      ),
+    ),
+  ],
+),
+```
+
+### 4.5 Grafik dengan fl_chart
+
+Grafik di dashboard menggunakan package **fl_chart**. Struktur hierarkinya:
+
+```
+BarChart
+  └── BarChartData
+        ├── barGroups → List<BarChartGroupData>
+        │     └── barRods → List<BarChartRodData>
+        ├── titlesData → FlTitlesData (label sumbu)
+        ├── gridData → FlGridData (garis bantu)
+        └── borderData → FlBorderData (border chart)
+```
+
+Data grafik berasal dari `provider.last7DaysRevenue`:
+
+```dart
+// Di provider
+List<double> get last7DaysRevenue {
+  final now = DateTime.now();
+  return List.generate(7, (i) {
+    final day = now.subtract(Duration(days: 6 - i));
+    return _transactions
+        .where((t) =>
+            t.date.year == day.year &&
+            t.date.month == day.month &&
+            t.date.day == day.day)
+        .fold(0.0, (sum, t) => sum + t.total);
+  });
+}
+```
+
+**`List.generate(7, (i) => ...)`** — membuat list dengan 7 element. Setiap element dihitung dengan fungsi berdasarkan index `i`.
+
+**Safety maxY:**
+
+```dart
+final maxRevenue = chartRevenue.isEmpty
+    ? 0.0
+    : chartRevenue.reduce((a, b) => a > b ? a : b);
+final maxY = maxRevenue > 0 ? maxRevenue * 1.3 : 100000.0;
+```
+
+Kalo `maxY = 0`, grafik bisa error. Makanya ada fallback: kalo semua data 0, pake `maxY = 100000.0`.
+
+### 4.6 Tooltip Interaktif
+
+```dart
+barTouchData: BarTouchData(
+  enabled: true,
+  touchTooltipData: BarTouchTooltipData(
+    getTooltipItem: (group, groupIndex, rod, rodIndex) {
+      return BarTooltipItem(
+        formatRupiah(rod.toY),  // Format pake helper
+        TextStyle(color: Colors.white),
+      );
+    },
+  ),
+),
+```
+
+Tooltip muncul saat user menyentuh bar — menampilkan nominal dalam format Rupiah.
+
+### 4.7 Recent Transactions — Spread Operator
+
+```dart
+...provider.transactions.take(5).map((t) => _TransactionCard(
+    transaction: t,
+    onDelete: () => provider.deleteTransaction(t.id),
+)),
+```
+
+**Spread operator `...`** — mengambil semua element dari list dan memasukkannya satu per satu ke dalam `children`.
+
+Tanpa spread:
+```dart
+children: [
+  Card(...),
+  Card(...),
+  Card(...),
+]
+```
+
+Dengan spread:
+```dart
+children: [
+  Text('Transaksi Terbaru'),
+  ...listOfCards,  // Semua element list jadi children
+]
+```
+
+### Istilah Baru di Tahap 4
+
+| Istilah | Arti |
+|---------|------|
+| **Scaffold** | Struktur dasar halaman Flutter |
+| **Row / Column** | Widget untuk menata widget secara horizontal/vertikal |
+| **Expanded** | Membagi ruang proporsional |
+| **SizedBox** | Widget spasi transparan |
+| **Spread operator (`...`)** | Memasukkan element list ke dalam collection |
+| **`List.generate`** | Membuat list dengan fungsi per index |
+| **Tooltip** | Info yang muncul saat user menyentuh elemen |
+
+### Latihan Tahap 4
+
+1. **Ganti warna grafik:** Ubah `color: Colors.blue[400]` di bar chart jadi gradient (`Colors.blue[400]` untuk ganjil, `Colors.blue[200]` untuk genap).
+2. **Tambah stat card:** Tambah kartu kelima di dashboard: "Rata-rata per Transaksi". (Petunjuk: `totalRevenue / transactions.length` — handle case kalo list kosong).
+3. **Ubah jumlah recent items:** Ganti `.take(5)` jadi `.take(3)`. Lihat perubahannya.
