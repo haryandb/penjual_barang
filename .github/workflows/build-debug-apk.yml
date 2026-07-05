@@ -30,7 +30,10 @@ jobs:
         run: flutter --version
 
       - name: Generate platform files
-        run: flutter create --project-name penjual_barang --platforms android .
+        run: |
+          flutter create --project-name penjual_barang --platforms android .
+          # Hapus auto-generated test (panggil class MyApp yang gak ada)
+          rm -f test/widget_test.dart
 
       - name: Get dependencies
         run: flutter pub get
