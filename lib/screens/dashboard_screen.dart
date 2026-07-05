@@ -20,9 +20,10 @@ class DashboardScreen extends StatelessWidget {
 
         final chartRevenue = provider.last7DaysRevenue;
         final chartLabels = provider.last7DaysLabels;
-        final maxY = chartRevenue.isEmpty
-            ? 100000.0
-            : chartRevenue.reduce((a, b) => a > b ? a : b) * 1.3;
+        final maxRevenue = chartRevenue.isEmpty
+            ? 0.0
+            : chartRevenue.reduce((a, b) => a > b ? a : b);
+        final maxY = maxRevenue > 0 ? maxRevenue * 1.3 : 100000.0;
 
         return RefreshIndicator(
           onRefresh: () async => await Future.delayed(
@@ -320,7 +321,7 @@ class _TransactionCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: _paymentColor(transaction.paymentMethod).withValues(alpha: 0.1),
+                color: _paymentColor(transaction.paymentMethod).withOpacity(0.1),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(
