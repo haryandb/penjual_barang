@@ -1012,3 +1012,368 @@ children: [
 1. **Ganti warna grafik:** Ubah `color: Colors.blue[400]` di bar chart jadi gradient (`Colors.blue[400]` untuk ganjil, `Colors.blue[200]` untuk genap).
 2. **Tambah stat card:** Tambah kartu kelima di dashboard: "Rata-rata per Transaksi". (Petunjuk: `totalRevenue / transactions.length` — handle case kalo list kosong).
 3. **Ubah jumlah recent items:** Ganti `.take(5)` jadi `.take(3)`. Lihat perubahannya.
+
+---
+
+## Tahap 5 — Form Tambah Transaksi: Input & Validasi
+
+Di tahap ini, kamu akan belajar **form**, **input**, dan **StatefulWidget**. Kamu akan membaca `lib/screens/add_transaction_screen.dart`.
+
+Buka file tersebut.
+
+### 5.1 StatefulWidget — Widget dengan State
+
+```dart
+class AddTransactionScreen extends StatefulWidget {
+  ...
+}
+
+class _AddTransactionScreenState extends State<AddTransactionScreen> {
+  ...
+}
+```
+
+Berbeda dengan `StatelessWidget` yang tampilannya tetap, **`StatefulWidget`** punya **state** yang bisa berubah selama widget hidup.
+
+**Dua class untuk satu widget:**
+1. `AddTransactionScreen` — konfigurasi widget (parameter yang diterima)
+2. `_AddTransactionScreenState` — state dan logic yang bisa berubah
+
+### 5.2 setState — Trigger Rebuild
+
+```dart
+setState(() {
+  _items.add(_ItemEntry(name: name, quantity: qty, price: price));
+});
+```
+
+**`setState()`** adalah cara memberi tahu Flutter: "Ada data yang berubah, rebuild widget ini!".
+
+Kapan pake `setState`?
+- User menambah/menghapus item di form
+- User mengganti metode pembayaran
+- Data lokal berubah
+
+> **Penting:** Kalo lupa panggil `setState`, UI TIDAK akan berubah meskipun datanya udah diupdate!
+
+### 5.3 TextEditingController
+
+```dart
+final _itemNameCtrl = TextEditingController();
+```
+
+**`TextEditingController`** adalah jembatan antara input teks di layar dengan kode. Lewat controller, kita bisa:
+- Membaca teks yang diketik user: `_itemNameCtrl.text`
+- Mengosongkan input: `_itemNameCtrl.clear()`
+- Mengisi input dari kode: `_itemNameCtrl.text = 'Beras'`
+
+### 5.4 Form & GlobalKey
+
+```dart
+final _formKey = GlobalKey<FormState>();
+
+Form(
+  key: _formKey,
+  child: ...,
+)
+```
+
+**`GlobalKey<FormState>()`** adalah kunci untuk mengakses state dari widget `Form`. Lewat key ini, kita bisa:
+
+```dart
+if (!_formKey.currentState!.validate()) return;
+```
+
+Method `validate()` menjalankan validator di semua `TextFormField`. Kalo ada yang gak valid, form otomatis menampilkan pesan error dan `validate()` return `false`.
+
+### 5.5 TextFormField & Validator
+
+```dart
+TextFormField(
+  controller: _customerCtrl,
+  decoration: const InputDecoration(labelText: 'Nama Pelanggan'),
+  validator: (value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'Nama pelanggan wajib diisi';
+    }
+    return null;  // null = valid
+  },
+)
+```
+
+`validator` adalah fungsi yang:
+- Return `String?` — kalo ada pesan error, tampilkan pesan itu
+- Return `null` — input valid
+
+### 5.6 tryParse — Konversi String ke Angka
+
+```dart
+final qty = int.tryParse(_itemQtyCtrl.text) ?? 0;
+final price = double.tryParse(_itemPriceCtrl.text) ?? 0;
+```
+
+**`tryParse`** adalah method yang mencoba mengubah string menjadi angka. Kalo gagal (misal user ngetik "abc"), return `null`.
+
+`int.tryParse('42')` → `42`
+`int.tryParse('abc')` → `null`
+`int.tryParse('abc') ?? 0` → `0` (null diganti 0)
+
+### 5.7 Dynamic Item List
+
+Form ini unik karena user bisa menambah **jumlah item yang tidak tetap**. Ada 3 bagian:
+
+**1. Daftar item yang sudah ditambah:**
+```dart
+ListView.builder(
+  itemCount: _items.length,
+  itemBuilder: (context, index) {
+    final item = _items[index];
+    return Card(
+      child: ListTile(
+        title: Text(item.name),
+        subtitle: Text('${item.quantity}x @ ${formatRupiah(item.price)}'),
+        trailing: IconButton(
+          icon: Icon(Icons.close),
+          onPressed: () => setState(() => _items.removeAt(index)),
+        ),
+      ),
+    );
+  },
+)
+```
+
+**2. Form input item baru:**
+```dart
+Row(
+  children: [
+    Expanded(flex: 2, child: TextField(controller: _itemNameCtrl, ...)),
+    Expanded(child: TextField(controller: _itemQtyCtrl, ...)),
+    Expanded(child: TextField(controller: _itemPriceCtrl, ...)),
+    IconButton(icon: Icon(Icons.add), onPressed: _addItem),
+  ],
+)
+```
+
+**3. Method `_addItem`:**
+```dart
+void _addItem() {
+  final name = _itemNameCtrl.text.trim();
+  final qty = int.tryParse(_itemQtyCtrl.text) ?? 0;
+  final price = double.tryParse(_itemPriceCtrl.text) ?? 0;
+
+  if (name.isEmpty || qty <= 0 || price <= 0) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Isi nama, qty, dan harga item dengan benar')),
+    );
+    return;
+  }
+
+  setState(() {
+    _items.add(_ItemEntry(name: name, quantity: qty, price: price));
+    _itemNameCtrl.clear();
+    _itemQtyCtrl.clear();
+    _itemPriceCtrl.clear();
+  });
+}
+```
+
+### 5.8 AnimatedContainer
+
+```dart
+AnimatedContainer(
+  duration: Duration(milliseconds: 200),
+  decoration: BoxDecoration(
+    color: selected ? Colors.blue[50] : Colors.grey[100],
+    borderRadius: BorderRadius.circular(12),
+    border: Border.all(
+      color: selected ? Colors.blue : Colors.grey[300]!,
+      width: selected ? 2 : 1,
+    ),
+  ),
+  child: ...
+)
+```
+
+**`AnimatedContainer`** adalah `Container` yang **menganimasikan** perubahannya sendiri. Cukup ubah properti lewat `setState`, Flutter yang handle transisi animasinya.
+
+Di form ini, chip pembayaran berubah warna dan border saat dipilih — animasi 200ms.
+
+### 5.9 SnackBar — Feedback ke User
+
+```dart
+ScaffoldMessenger.of(context).showSnackBar(
+  SnackBar(content: Text('Isi nama, qty, dan harga item dengan benar')),
+);
+```
+
+**SnackBar** adalah notifikasi kecil yang muncul di bawah layar. Cocok untuk feedback cepat: sukses, error, info.
+
+### 5.10 Navigator — Pindah Halaman
+
+```dart
+// Buka halaman form
+Navigator.of(context).push(
+  MaterialPageRoute(builder: (_) => const AddTransactionScreen()),
+);
+
+// Kembali ke halaman sebelumnya
+Navigator.of(context).pop();
+```
+
+**Navigator** mengelola tumpukan (stack) halaman. `push` menambahkan halaman baru di atas, `pop` menghapus halaman yang sedang aktif dan kembali ke halaman sebelumnya.
+
+### Istilah Baru di Tahap 5
+
+| Istilah | Arti |
+|---------|------|
+| **StatefulWidget** | Widget dengan state yang bisa berubah |
+| **setState** | Method untuk trigger rebuild widget |
+| **TextEditingController** | Jembatan antara input teks dan kode |
+| **GlobalKey** | Kunci untuk mengakses state widget |
+| **Validator** | Fungsi yang ngecek apakah input valid |
+| **tryParse** | Konversi string ke angka, return null kalo gagal |
+| **SnackBar** | Notifikasi kecil di bawah layar |
+| **Navigator** | Mengelola tumpukan halaman (push/pop) |
+| **AnimatedContainer** | Container dengan animasi otomatis |
+
+### Latihan Tahap 5
+
+1. **Tambah field telepon:** Tambah `TextFormField` untuk nomor telepon dengan validator: minimal 10 digit, hanya angka.
+2. **Tombol batal:** Tambah tombol "Batal" di samping tombol "Simpan". Kalo ditekan, tampilkan dialog konfirmasi (`showDialog` with `AlertDialog`) sebelum `Navigator.pop()`.
+3. **Format ID:** Ganti ID dari `DateTime.now().millisecondsSinceEpoch.toString()` jadi format "TRX-001", "TRX-002" — auto increment berdasarkan jumlah transaksi yang sudah ada.
+
+---
+
+## Tahap 6 — Daftar Transaksi: List & Navigasi
+
+Di tahap ini, kamu akan belajar **ListView**, **ExpansionTile**, dan **bottom navigation**.
+
+Buka file `lib/screens/transactions_screen.dart` dan `lib/main.dart` (bagian bottom nav).
+
+### 6.1 ListView.builder — List Efisien
+
+```dart
+ListView.builder(
+  itemCount: transactions.length,
+  itemBuilder: (context, index) {
+    final transaction = transactions[index];
+    return _buildTransactionCard(transaction);
+  },
+)
+```
+
+**`ListView.builder`** adalah widget untuk menampilkan list dengan efisien. Bedanya dengan `Column` yang berisi banyak widget:
+
+- **Column** — semua widget di-render dari awal, bahkan yang gak kelihatan
+- **ListView.builder** — hanya widget yang terlihat di layar yang di-render. Sisanya di-render saat di-scroll ke bawah.
+
+Ini penting untuk performa. Kalo ada 1000 transaksi, `Column` akan nge-render 1000 card sekaligus. `ListView.builder` hanya nge-render ~10 card yang kelihatan.
+
+### 6.2 ExpansionTile — Widget Expandable
+
+```dart
+ExpansionTile(
+  leading: _paymentAvatar(t.paymentMethod),
+  title: Text(t.customerName),
+  subtitle: Text('${t.formattedDate} · ${t.paymentLabel}'),
+  children: [
+    ...t.items.map((item) => Row(
+      children: [
+        Expanded(flex: 3, child: Text(item.name)),
+        SizedBox(width: 60, child: Text('${item.quantity}x')),
+        SizedBox(width: 100, child: Text(formatRupiah(item.price))),
+        SizedBox(width: 100, child: Text(formatRupiah(item.subtotal))),
+      ],
+    )),
+    Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text('Total Item: ${t.totalItems}'),
+        Text(formatRupiah(t.total)),
+      ],
+    ),
+    OutlinedButton.icon(onPressed: ..., ...),
+  ],
+)
+```
+
+**`ExpansionTile`** adalah list item yang bisa di-expand/di-collapse. Pas di-tap, bagian `children` muncul dengan animasi.
+
+**Item row layout:**
+```
+[ Nama Barang ]    [ 2x ]    [ Rp18.000 ]    [ Rp36.000 ]
+    flex: 3         60px        100px           100px
+```
+
+### 6.3 Empty State
+
+```dart
+if (transactions.isEmpty) {
+  return Center(
+    child: Column(
+      children: [
+        Icon(Icons.receipt_long_outlined, size: 80, color: Colors.grey[300]),
+        Text('Belum ada transaksi'),
+        Text('Tap + untuk menambah transaksi baru'),
+      ],
+    ),
+  );
+}
+```
+
+**Empty state** adalah tampilan yang muncul saat data kosong. Ini penting untuk UX — user tahu bahwa aplikasi berfungsi, cuma belum ada data.
+
+### 6.4 Bottom Navigation
+
+Di `lib/main.dart`:
+
+```dart
+bottomNavigationBar: NavigationBar(
+  selectedIndex: _currentIndex,
+  onDestinationSelected: (i) => setState(() => _currentIndex = i),
+  destinations: const [
+    NavigationDestination(
+      icon: Icon(Icons.dashboard_outlined),
+      selectedIcon: Icon(Icons.dashboard_rounded),
+      label: 'Dashboard',
+    ),
+    NavigationDestination(
+      icon: Icon(Icons.receipt_long_outlined),
+      selectedIcon: Icon(Icons.receipt_long_rounded),
+      label: 'Transaksi',
+    ),
+  ],
+),
+```
+
+`NavigationBar` adalah bottom navigation versi Material 3. Setiap tab punya icon (biasa dan aktif) serta label.
+
+### 6.5 IndexedStack vs PageView
+
+```dart
+body: IndexedStack(
+  index: _currentIndex,
+  children: _screens,
+),
+```
+
+**`IndexedStack`** — semua halaman tetap di-memory (state tersimpan). Cocok untuk tab navigasi.
+**`PageView`** — halaman di luar viewport bisa di-dispose. Cocok untuk onboarding/wizard.
+
+Kalo pake `PageView`, setiap ganti tab, halaman di-render ulang dari awal. `IndexedStack` lebih cocok untuk dashboard dan daftar transaksi yang state-nya perlu dipertahankan.
+
+### Istilah Baru di Tahap 6
+
+| Istilah | Arti |
+|---------|------|
+| **ListView.builder** | Widget list efisien — render item yang terlihat saja |
+| **ExpansionTile** | Item list yang bisa di-expand |
+| **Empty state** | Tampilan saat data kosong |
+| **NavigationBar** | Bottom navigation Material 3 |
+| **IndexedStack** | Menyimpan state semua tab |
+
+### Latihan Tahap 6
+
+1. **Tambah sorting:** Tambah dropdown atau tombol untuk mengurutkan transaksi: Terbaru, Tertua, Tertinggi. (Petunjuk: pake method `..sort()` bawaan list).
+2. **Badge notifikasi:** Tambah badge di `NavigationDestination` "Transaksi" yang menampilkan jumlah transaksi hari ini. (Petunjuk: cek properti `badge` di NavigationDestination).
+3. **Halaman detail:** Ganti `ExpansionTile` jadi tap untuk navigasi ke halaman detail transaksi terpisah. Buat screen baru `TransactionDetailScreen`.
