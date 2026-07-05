@@ -5,6 +5,17 @@ import '../utils/currency_helper.dart';
 import '../providers/transaction_provider.dart';
 import '../widgets/stat_card.dart';
 
+String _formatDate(DateTime date) {
+  const days = [
+    'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu',
+  ];
+  const months = [
+    'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
+  ];
+  return '${days[date.weekday - 1]}, ${date.day} ${months[date.month - 1]} ${date.year}';
+}
+
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
 
@@ -45,9 +56,7 @@ class DashboardScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          DateFormat('EEEE, dd MMMM yyyy', 'id').format(
-                            DateTime.now(),
-                          ),
+                          _formatDate(DateTime.now()),
                           style: TextStyle(color: Colors.grey[600], fontSize: 13),
                         ),
                       ],
@@ -221,9 +230,7 @@ class DashboardScreen extends StatelessWidget {
                           ),
                     ),
                     TextButton.icon(
-                      onPressed: () {
-                        // Navigate to all transactions
-                      },
+                      onPressed: () {},
                       icon: const Icon(Icons.arrow_forward_ios, size: 12),
                       label: const Text('Lihat Semua'),
                     ),
