@@ -172,3 +172,448 @@ Jelajahi folder-folder ini setelah aplikasi berjalan. Kamu gak perlu hafal semua
 1. **Ganti warna tema:** Buka `lib/main.dart`, cari `colorSchemeSeed: Colors.blue`, ganti `Colors.blue` jadi `Colors.green`. Simpan, lihat perubahannya.
 2. **Ganti judul AppBar:** Cari `title: 'Dashboard'`, ganti jadi `title: 'Toko Saya'`. Hot reload untuk lihat hasilnya.
 3. **Explore:** Buka file `lib/screens/dashboard_screen.dart`. Coba cari teks yang muncul di layar dashboard. Jangan khawatir kalo belum ngerti — itu tugas kita di tahap-tahap berikutnya.
+
+---
+
+## Tahap 1 — Model: Belajar Dart Lewat Data Transaksi
+
+Di tahap ini, kamu akan belajar **dasar-dasar bahasa Dart** sambil membaca file `lib/models/transaction.dart`. Model adalah struktur data — cara kita menyimpan informasi di memori komputer.
+
+Buka file `lib/models/transaction.dart` di VS Code dan ikuti penjelasan di bawah.
+
+### 1.1 Variable & Tipe Data
+
+Lihat baris pertama di dalam class `TransactionItem`:
+
+```dart
+class TransactionItem {
+  String name;       // Nama barang — teks
+  int quantity;      // Jumlah — angka bulat
+  double price;      // Harga satuan — angka desimal
+```
+
+Di Dart, setiap **variable** punya **tipe data** — yaitu jenis nilai yang bisa disimpan.
+
+| Tipe | Contoh Nilai | Kegunaan |
+|------|-------------|----------|
+| `String` | `"Beras 5kg"`, `"Budi"` | Teks |
+| `int` | `1`, `42`, `-5` | Bilangan bulat (tidak ada koma) |
+| `double` | `3.14`, `65000.0` | Bilangan desimal (boleh berkoma) |
+| `bool` | `true`, `false` | Benar/salah |
+
+**Kenapa harga pake `double` bukan `int`?** Harga di project ini memang bilangan bulat (65000), tapi secara konsep harga bisa saja berkoma (misal diskon 0.5%). Makanya pake `double`.
+
+### 1.2 `final` — Nilai yang Tidak Bisa Diubah
+
+Sekarang lihat class `Transaction`:
+
+```dart
+class Transaction {
+  final String id;
+  final String customerName;
+  final List<TransactionItem> items;
+  final DateTime date;
+  final String paymentMethod;
+```
+
+Keyword `final` artinya: **setelah diisi, nilai gak bisa diubah lagi**. Ini disebut **immutable** (tidak bisa dimutasi/diubah).
+
+Kenapa transaksi pake `final`? Konsepnya: setelah transaksi terjadi, datanya sudah tetap. Kamu gak akan mengubah nama pelanggan atau barang setelah transaksi selesai — kalo ada kesalahan, lebih baik hapus transaksi dan buat ulang.
+
+Bandingkan dengan `TransactionItem` yang **tidak** pake `final`:
+```dart
+class TransactionItem {
+  String name;       // ← TIDAK final — bisa diubah
+  int quantity;
+  double price;
+```
+
+Item barang mungkin perlu diubah (misal koreksi jumlah). Makanya gak dikasih `final`.
+
+> **Ingat:** Pada dasarnya, gunakan `final` sebisa mungkin. Hanya lepas `final` kalo kamu yakin nilai itu perlu diubah setelah object dibuat.
+
+### 1.3 Class & Constructor
+
+**Class** adalah cetakan untuk membuat **object**. Class `TransactionItem` adalah cetakan, dan setiap transaksi item yang spesifik (misal "Beras 5kg" untuk transaksi #1) adalah sebuah object.
+
+**Constructor** adalah method khusus yang dijalankan saat object dibuat.
+
+```dart
+TransactionItem({
+  required this.name,
+  required this.quantity,
+  required this.price,
+});
+```
+
+Ini disebut **constructor with named parameters** — parameter dipanggil dengan nama, bukan urutan.
+
+```dart
+// Pake urutan (positional) — harus hafal urutannya:
+TransactionItem('Beras 5kg', 2, 65000);
+
+// Pake nama (named) — lebih jelas:
+TransactionItem(name: 'Beras 5kg', quantity: 2, price: 65000);
+```
+
+Named parameters lebih mudah dibaca dan gak rentan salah urut.
+
+### 1.4 Keyword `required` & `this.`
+
+- `required` — parameter **wajib** diisi saat membuat object. Kalo lupa, error.
+- `this.name` — `this` merujuk ke **object saat ini**. `this.name` artinya "field `name` milik object ini, diisi dari parameter `name`".
+
+```dart
+TransactionItem({required this.name, ...});
+//                      ^^^^^^^^^^^^
+//  Artinya: parameter name → field this.name
+```
+
+### 1.5 Object Literal — Cara Bikin Object
+
+```dart
+TransactionItem(name: 'Beras 5kg', quantity: 2, price: 65000)
+```
+
+Ini adalah object literal: kita "panggil" nama class seperti fungsi, dan isi parameter-parameternya.
+
+Contoh bikin object transaksi:
+```dart
+Transaction(
+  id: '1',
+  customerName: 'Budi Santoso',
+  items: [
+    TransactionItem(name: 'Beras 5kg', quantity: 2, price: 65000),
+    TransactionItem(name: 'Minyak Goreng 1L', quantity: 3, price: 18000),
+  ],
+  date: DateTime.now(),
+  paymentMethod: 'cash',
+);
+```
+
+### 1.6 Getter — Properti yang Dihitung
+
+Lihat baris ini:
+
+```dart
+/// Getter: subtotal = quantity × price
+double get subtotal => quantity * price;
+```
+
+**Getter** adalah properti yang nilainya **dihitung** dari properti lain, bukan disimpan sebagai field.
+
+- `double` = tipe kembalian
+- `get` = keyword getter
+- `subtotal` = nama getter
+- `=>` = arrow syntax, artinya "return (nilai berikut)"
+- `quantity * price` = rumusnya
+
+**Kenapa pake getter, bukan field biasa?**
+
+Karena `subtotal` selalu bisa dihitung dari `quantity * price`. Kalo disimpan sebagai field, kita harus ingat meng-update nilai `subtotal` setiap kali `quantity` atau `price` berubah. Dengan getter, nilainya otomatis selalu benar.
+
+**Getter vs Method biasa:**
+```dart
+// ❌ Kalo pake method: panggil dengan ()
+item.subtotal()
+
+// ✅ Kalo pake getter: panggil tanpa ()
+item.subtotal
+```
+
+Gunakan getter untuk properti yang ringan dihitung (seperti perkalian/penjumlahan). Kalo kalkulasinya berat (misal baca file), pake method.
+
+### 1.7 String Interpolation
+
+```dart
+return '${date.day} ${months[date.month - 1]} ${date.year}';
+```
+
+**String interpolation** adalah cara memasukkan nilai variable ke dalam string. Gunakan `${expression}`:
+
+```dart
+'Namaku ${nama} dan umurku ${umur} tahun'
+// Hasil: "Namaku Budi dan umurku 20 tahun"
+```
+
+Kalo expressionnya cuma satu variable, boleh tanpa kurung kurawal:
+```dart
+'Namaku $nama dan umurku $umur tahun'  // Sama aja
+```
+
+### 1.8 List, fold, dan Akumulasi
+
+```dart
+double get total =>
+    items.fold(0, (sum, item) => sum + item.subtotal);
+```
+
+**`fold`** adalah method untuk **mengakumulasi** (menjumlahkan) nilai-nilai dalam list.
+
+Cara kerja `fold`:
+```
+       (0)           ← nilai awal
+         ↓
+item[0] → sum=0,  ditambah item.subtotal → sum baru
+         ↓
+item[1] → sum=baru, ditambah item.subtotal → sum baru
+         ↓
+  ... dan seterusnya sampai list habis
+         ↓
+      return sum akhir
+```
+
+Contoh lebih sederhana:
+```dart
+final numbers = [1, 2, 3, 4, 5];
+final total = numbers.fold(0, (sum, n) => sum + n);
+// total = 15
+```
+
+**`fold` vs `reduce`:**
+
+| Method | Bisa list kosong? | Return type |
+|--------|------------------|-------------|
+| `fold` | ✅ Ya (return nilai awal) | Bisa beda dengan tipe element |
+| `reduce` | ❌ Minimal 1 element | Sama dengan tipe element |
+
+### 1.9 Switch-Case
+
+```dart
+String get paymentLabel {
+  switch (paymentMethod) {
+    case 'cash':     return 'Tunai';
+    case 'transfer': return 'Transfer';
+    case 'qris':     return 'QRIS';
+    default:         return paymentMethod;
+  }
+}
+```
+
+**Switch-case** adalah cara memilih satu nilai dari banyak kemungkinan. Lebih rapi daripada `if-else` bersusun.
+
+Cara kerja:
+1. Lihat nilai `paymentMethod`
+2. Cocokkan dengan setiap `case`
+3. Kalo cocok, return nilai yang sesuai
+4. Kalo gak ada yang cocok, jalankan `default`
+
+### 1.10 Index Offset — Kenapa `date.month - 1`?
+
+```dart
+final months = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
+  'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'
+];
+return '${date.day} ${months[date.month - 1]} ${date.year}';
+```
+
+Array/list di Dart (dan kebanyakan bahasa) menggunakan **index 0-based** — artinya index pertama adalah 0, bukan 1.
+
+```
+Index:    0      1      2      3    ...   11
+Array:  ['Jan', 'Feb', 'Mar', 'Apr', ..., 'Des']
+```
+
+Tapi `date.month` mengembalikan **1-based**: Januari = 1, Februari = 2, ... Desember = 12.
+
+Jadi untuk mengambil `months[date.month]` dengan `date.month = 1` akan mengambil `months[1]` = 'Februari' — **salah**.
+
+Solusi: kurangi 1: `months[date.month - 1]`.
+
+### Istilah Baru di Tahap 1
+
+| Istilah | Arti |
+|---------|------|
+| **Variable** | Tempat menyimpan nilai di memori |
+| **Tipe data** | Jenis nilai (`String`, `int`, `double`) |
+| **Class** | Cetakan untuk membuat object |
+| **Object** | Instance/contoh nyata dari class |
+| **Constructor** | Method khusus untuk membuat object |
+| **Named parameter** | Parameter yang dipanggil dengan nama |
+| **`final`** | Keyword — nilai tidak bisa diubah setelah diisi |
+| **Immutable** | Tidak bisa diubah setelah dibuat |
+| **Getter** | Properti yang nilainya dihitung otomatis |
+| **String interpolation** | Memasukkan nilai variable ke string |
+| **`fold`** | Method untuk mengakumulasi list |
+| **Index 0-based** | Index dimulai dari 0, bukan 1 |
+
+### Latihan Tahap 1
+
+1. **Tambah diskon:** Di class `TransactionItem`, tambah field baru `double discount = 0` (default 0). Lalu buat getter `double get totalAfterDiscount => subtotal - (subtotal * discount / 100)`.
+2. **Buat model baru:** Buat file baru `lib/models/customer.dart`. Definisikan class `Customer` dengan field: `String name`, `String phone`, `DateTime memberSince` (pake `final`). Gunakan named constructor dengan required parameter.
+3. **Eksperimen fold:** Di penjelasan, kita pake `fold` untuk jumlahin subtotal. Coba hitung total **quantity** semua item pake `fold`. Petunjuk: `items.fold(0, (sum, item) => sum + item.quantity)`.
+
+---
+
+## Tahap 2 — StatCard: Widget Flutter Pertama
+
+Di tahap ini, kamu akan belajar **Flutter widget** pertama kamu dengan membaca `lib/widgets/stat_card.dart`. Widget adalah komponen UI — tombol, teks, card, semuanya adalah widget.
+
+Buka file `lib/widgets/stat_card.dart`.
+
+### 2.1 StatelessWidget — Widget Tanpa State
+
+```dart
+class StatCard extends StatelessWidget {
+```
+
+**`StatelessWidget`** adalah jenis widget yang **tidak punya state yang berubah**. Tampilannya ditentukan dari awal dan tidak akan berubah selama widget ada.
+
+Contoh widget stateless: teks, icon, card — semua yang tampilannya tetap.
+
+Nanti di Tahap 5 kamu akan lihat **`StatefulWidget`** — widget yang punya state yang bisa berubah (misal form input).
+
+### 2.2 `build(BuildContext context)` — Method Utama
+
+```dart
+@override
+Widget build(BuildContext context) {
+  return Card(...);
+}
+```
+
+Method `build` adalah **otak** dari setiap widget. Method ini:
+1. Dijalankan saat widget pertama kali ditampilkan
+2. **Mengembalikan** widget tree (susunan widget)
+3. Parameter `context` berisi informasi posisi widget di dalam tree
+
+### 2.3 Widget Tree
+
+Setiap widget Flutter bisa berisi widget lain di dalamnya — ini disebut **widget tree** (pohon widget).
+
+StatCard punya widget tree seperti ini:
+
+```
+Card
+  └── Padding
+        └── Column
+              ├── Container (icon)
+              ├── SizedBox (jarak)
+              ├── Text (value)
+              ├── Text (title)
+              └── Text? (subtitle — opsional)
+```
+
+Kode yang menghasilkan tree di atas:
+
+```dart
+return Card(
+  child: Padding(
+    padding: const EdgeInsets.all(16),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Icon container
+        Container(...),
+        SizedBox(height: 12),
+        // Value
+        Text(value, style: ...),
+        // Title
+        Text(title, style: ...),
+        // Optional subtitle
+        if (subtitle != null) Text(subtitle!, style: ...),
+      ],
+    ),
+  ),
+);
+```
+
+**Widget tree = nesting.** Widget di luar "membungkus" widget di dalam. Setiap widget di Flutter bekerja seperti ini — kamu menggabungkan widget kecil untuk membuat UI yang kompleks.
+
+### 2.4 Constructor Widget — Parameter
+
+```dart
+const StatCard({
+  required this.title,
+  required this.value,
+  required this.icon,
+  required this.color,
+  this.subtitle,           // Optional — bisa diisi atau tidak
+});
+```
+
+Sama seperti model di Tahap 1, widget juga punya constructor dengan parameter. Bedanya, widget ini punya parameter yang **required** dan yang **optional**.
+
+Kalo ada parameter yang gak selalu diisi, gunakan **nullable** (`String?`):
+
+```dart
+final String? subtitle;   // Boleh null
+```
+
+### 2.5 Widget Dasar yang Dipake
+
+| Widget | Fungsi |
+|--------|--------|
+| `Card` | Kotak dengan bayangan, untuk mengelompokkan konten |
+| `Padding` | Memberi jarak di sekeliling widget anak |
+| `Column` | Menata widget anak secara vertikal (ke bawah) |
+| `Container` | Kotak serbaguna — bisa dikasih warna, border, padding |
+| `Text` | Menampilkan teks |
+| `Icon` | Menampilkan icon (dari Material Design icons) |
+| `SizedBox` | Kotak transparan — biasa dipake untuk spasi |
+
+### 2.6 `EdgeInsets` & `BorderRadius` — Jarak & Sudut
+
+```dart
+padding: const EdgeInsets.all(16),           // Jarak 16px di semua sisi
+borderRadius: BorderRadius.circular(10),     // Sudut 10px melengkung
+```
+
+- `EdgeInsets.all(16)` — jarak 16 pixel di semua sisi (atas, kanan, bawah, kiri)
+- `EdgeInsets.symmetric(horizontal: 12)` — jarak kiri+kanan saja
+- `EdgeInsets.only(top: 8)` — jarak atas saja
+- `BorderRadius.circular(10)` — semua sudut melengkung 10px
+- `BorderRadius.only(topLeft: Radius.circular(4))` — sudut tertentu saja
+
+### 2.7 Conditional Widget — Widget yang Muncul Bersyarat
+
+```dart
+Column(
+  children: [
+    Text('Title'),
+    if (subtitle != null) Text(subtitle!),
+    // ↑↑ Kalo subtitle null, widget ini gak dirender
+  ],
+)
+```
+
+Flutter mengizinkan `if` di dalam list `children:`. Ini sangat berguna untuk menampilkan widget hanya saat kondisi terpenuhi.
+
+### 2.8 Null Assertion `!`
+
+```dart
+Text(subtitle!)
+```
+
+Tanda `!` disebut **null assertion** — artinya "saya jamin variable ini gak null". Ini perlu karena Dart marah kalo kita pake variable nullable tanpa memastikan dulu.
+
+Sebelum pake `!`, kita udah ngecek `if (subtitle != null)`. Setelah cek itu, Dart seharusnya tahu bahwa subtitle gak null. Tapi kadang Dart tetap perlu dikasih tahu pake `!`.
+
+### 2.9 `copyWith` — Modifikasi Style
+
+```dart
+Theme.of(context).textTheme.headlineSmall
+    ?.copyWith(fontWeight: FontWeight.bold)
+```
+
+`copyWith` adalah method yang mengembalikan **salinan** dari style/style dengan beberapa properti diubah. Ini berguna untuk mengambil theme yang sudah ada dan memodifikasinya sedikit.
+
+### Istilah Baru di Tahap 2
+
+| Istilah | Arti |
+|---------|------|
+| **StatelessWidget** | Widget yang tampilannya tetap, tidak bisa berubah |
+| **Widget tree** | Susunan widget (parent-child) |
+| **Nullable** | Bisa bernilai null (ditandai `?`) |
+| **Null assertion (`!`)** | "Saya yakin ini gak null" |
+| **`EdgeInsets`** | Mengatur jarak/spasi |
+| **`BorderRadius`** | Mengatur kelengkungan sudut |
+| **Conditional widget** | Widget yang muncul hanya jika kondisi terpenuhi |
+| **`copyWith`** | Method untuk membuat salinan dengan modifikasi |
+
+### Latihan Tahap 2
+
+1. **Buat widget `StatusBadge`:** Buat file baru `lib/widgets/status_badge.dart`. Widget ini menerima parameter `String label` dan `Color color`. Tampilkan teks dalam Container dengan background color dan border-radius 8.
+2. **Tambah `onTap` di StatCard:** Jadikan `VoidCallback? onTap` sebagai parameter optional. Kalo diisi, bungkus Card dengan `GestureDetector` atau `InkWell`. Kalo null, tampilkan Card biasa.
+3. **Eksperimen:** Ganti nilai `EdgeInsets.all(16)` jadi `EdgeInsets.all(8)` di StatCard. Hot reload dan lihat perubahannya.
