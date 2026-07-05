@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:intl/intl.dart';
+import '../utils/currency_helper.dart';
 import '../providers/transaction_provider.dart';
 
 class TransactionsScreen extends StatelessWidget {
@@ -10,12 +10,6 @@ class TransactionsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<TransactionProvider>(
       builder: (context, provider, _) {
-        final currency = NumberFormat.currency(
-          locale: 'id_ID',
-          symbol: 'Rp ',
-          decimalDigits: 0,
-        );
-
         if (provider.transactions.isEmpty) {
           return Center(
             child: Column(
@@ -69,7 +63,7 @@ class TransactionsScreen extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      currency.format(t.total),
+                      formatRupiah(t.total),
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 14,
@@ -106,7 +100,7 @@ class TransactionsScreen extends StatelessWidget {
                             SizedBox(
                               width: 100,
                               child: Text(
-                                currency.format(item.price),
+                                formatRupiah(item.price),
                                 textAlign: TextAlign.right,
                                 style: TextStyle(
                                     color: Colors.grey[600], fontSize: 13),
@@ -115,7 +109,7 @@ class TransactionsScreen extends StatelessWidget {
                             SizedBox(
                               width: 100,
                               child: Text(
-                                currency.format(item.subtotal),
+                                formatRupiah(item.subtotal),
                                 textAlign: TextAlign.right,
                                 style: const TextStyle(
                                     fontWeight: FontWeight.w600, fontSize: 13),
@@ -131,7 +125,7 @@ class TransactionsScreen extends StatelessWidget {
                       Text('Total Item: ${t.totalItems}',
                           style: TextStyle(color: Colors.grey[600])),
                       Text(
-                        currency.format(t.total),
+                        formatRupiah(t.total),
                         style: const TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 16,

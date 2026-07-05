@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:intl/intl.dart';
+import '../utils/currency_helper.dart';
 import '../providers/transaction_provider.dart';
 import '../models/transaction.dart';
 
@@ -87,12 +87,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final currency = NumberFormat.currency(
-      locale: 'id_ID',
-      symbol: 'Rp ',
-      decimalDigits: 0,
-    );
-
     final total = _items.fold(0.0, (sum, e) => sum + (e.quantity * e.price));
 
     return Scaffold(
@@ -185,13 +179,13 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                   title: Text(item.name,
                       style: const TextStyle(fontWeight: FontWeight.w500)),
                   subtitle: Text(
-                    '${item.quantity} x ${currency.format(item.price)}',
+                    '${item.quantity} x ${formatRupiah(item.price)}',
                     style: TextStyle(color: Colors.grey[600], fontSize: 13),
                   ),
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(currency.format(item.quantity * item.price),
+                      Text(formatRupiah(item.quantity * item.price),
                           style: const TextStyle(fontWeight: FontWeight.bold)),
                       const SizedBox(width: 8),
                       InkWell(
@@ -314,7 +308,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.w600,
                         )),
-                Text(currency.format(total),
+                Text(formatRupiah(total),
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
                           fontWeight: FontWeight.bold,
                           color: Colors.green[700],

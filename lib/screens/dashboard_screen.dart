@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:fl_chart/fl_chart.dart';
-import 'package:intl/intl.dart';
+import '../utils/currency_helper.dart';
 import '../providers/transaction_provider.dart';
 import '../widgets/stat_card.dart';
 
@@ -12,12 +12,6 @@ class DashboardScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<TransactionProvider>(
       builder: (context, provider, _) {
-        final currency = NumberFormat.currency(
-          locale: 'id_ID',
-          symbol: 'Rp ',
-          decimalDigits: 0,
-        );
-
         final chartRevenue = provider.last7DaysRevenue;
         final chartLabels = provider.last7DaysLabels;
         final maxRevenue = chartRevenue.isEmpty
@@ -68,7 +62,7 @@ class DashboardScreen extends StatelessWidget {
                     Expanded(
                       child: StatCard(
                         title: 'Penjualan Hari Ini',
-                        value: currency.format(provider.todayRevenue),
+                        value: formatRupiah(provider.todayRevenue),
                         icon: Icons.trending_up_rounded,
                         color: Colors.green,
                         subtitle: '${provider.todayCount} transaksi',
@@ -101,7 +95,7 @@ class DashboardScreen extends StatelessWidget {
                     Expanded(
                       child: StatCard(
                         title: 'Total Pendapatan',
-                        value: currency.format(provider.totalRevenue),
+                        value: formatRupiah(provider.totalRevenue),
                         icon: Icons.account_balance_wallet_rounded,
                         color: Colors.purple,
                       ),
@@ -138,7 +132,7 @@ class DashboardScreen extends StatelessWidget {
                               tooltipRoundedRadius: 8,
                               getTooltipItem: (group, groupIndex, rod, rodIndex) {
                                 return BarTooltipItem(
-                                  currency.format(rod.toY),
+                                  formatRupiah(rod.toY),
                                   TextStyle(
                                     color: Colors.white,
                                     fontSize: 12,
@@ -238,7 +232,6 @@ class DashboardScreen extends StatelessWidget {
                 const SizedBox(height: 8),
                 ...provider.transactions.take(5).map((t) => _TransactionCard(
                       transaction: t,
-                      currency: currency,
                       onDelete: () => provider.deleteTransaction(t.id),
                     )),
                 if (provider.transactions.isEmpty)
@@ -269,12 +262,10 @@ class DashboardScreen extends StatelessWidget {
 
 class _TransactionCard extends StatelessWidget {
   final dynamic transaction;
-  final NumberFormat currency;
   final VoidCallback onDelete;
 
   const _TransactionCard({
     required this.transaction,
-    required this.currency,
     required this.onDelete,
   });
 
@@ -363,7 +354,7 @@ class _TransactionCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(
-                  currency.format(transaction.total),
+                  formatRupiah(transaction.total),
                   style: const TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 14,
